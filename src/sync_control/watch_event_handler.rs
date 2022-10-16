@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::ffi::OsStr;
 use std::io::ErrorKind;
 use std::mem;
@@ -5,36 +6,47 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use anyhow::Result;
+use futures_util::{Sink, SinkExt};
 use tokio::fs::File;
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::file_event_produce::WatchEvent;
 use crate::index::{FileDetail, FileKind, Index, IndexFile, IndexGuard};
-use crate::sync_control::hash_file;
+use crate::sync_control::{hash_file, SendRumors};
 
-pub struct WatchEventHandler<'a, I> {
+pub struct WatchEventHandler<'a, I, Si> {
     user_id: &'a Uuid,
     dir_id: &'a Uuid,
     sync_dir: &'a Path,
     index: &'a I,
+    rumor_sender: &'a mut Si,
 }
 
-impl<'a, I> WatchEventHandler<'a, I> {
-    pub fn new(user_id: &'a Uuid, dir_id: &'a Uuid, sync_dir: &'a Path, index: &'a I) -> Self {
+impl<'a, I, Si> WatchEventHandler<'a, I, Si> {
+    pub fn new(
+        user_id: &'a Uuid,
+        dir_id: &'a Uuid,
+        sync_dir: &'a Path,
+        index: &'a I,
+        rumor_sender: &'a mut Si,
+    ) -> Self {
         Self {
             user_id,
             dir_id,
             sync_dir,
             index,
+            rumor_sender,
         }
     }
 }
 
-impl<'a, I> WatchEventHandler<'a, I>
+impl<'a, I, Si> WatchEventHandler<'a, I, Si>
 where
     I: Index,
     <I::Guard as IndexGuard>::Error: Send + Sync + 'static,
+    Si: Sink<SendRumors> + Unpin,
+    Si::Error: Error + Send + Sync + 'static,
 {
     pub async fn handle_watch_events(mut self, watch_events: Vec<WatchEvent>) -> Result<()> {
         let mut rumors = Vec::with_capacity(watch_events.len());
@@ -544,6 +556,14 @@ where
         &mut self,
         rumors: Iter,
     ) -> Result<()> {
-        todo!()
+        let rumors = rumors.into_iter().collect::<Vec<_>>();
+        let send_rumors = SendRumors {
+            rumors,
+            except: None,
+        };
+
+        self.rumor_sender.send(send_rumors).await?;
+
+        Ok(())
     }
 }

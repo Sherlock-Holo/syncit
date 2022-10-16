@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::error::Error;
 use std::ffi::OsStr;
 use std::io::ErrorKind;
 use std::path::Path;
@@ -6,7 +7,7 @@ use std::{io, u64};
 
 use anyhow::{anyhow, Result};
 use chrono::{FixedOffset, Utc};
-use futures_util::{Stream, TryStreamExt};
+use futures_util::{Sink, SinkExt, Stream, TryStreamExt};
 use itertools::{EitherOrBoth, Itertools};
 use tap::TapFallible;
 use tokio::fs;
@@ -16,23 +17,26 @@ use uuid::Uuid;
 
 use crate::ext::{AsyncFileCopy, AsyncFileExt, AsyncTempFile};
 use crate::index::{Block, Index, IndexFile, IndexGuard};
+use crate::sync_control::SendRumors;
 use crate::transfer::{DownloadBlock, DownloadBlockRequest, DownloadTransfer};
 
-pub struct RumorsEventHandler<'a, I, Dl> {
+pub struct RumorsEventHandler<'a, I, Dl, Si> {
     user_id: &'a Uuid,
     dir_id: &'a Uuid,
     sync_dir: &'a Path,
     index: &'a I,
     download_transfer: &'a Dl,
+    rumor_sender: &'a mut Si,
 }
 
-impl<'a, I, Dl> RumorsEventHandler<'a, I, Dl> {
+impl<'a, I, Dl, Si> RumorsEventHandler<'a, I, Dl, Si> {
     pub fn new(
         user_id: &'a Uuid,
         dir_id: &'a Uuid,
         sync_dir: &'a Path,
         index: &'a I,
         download_transfer: &'a Dl,
+        rumor_sender: &'a mut Si,
     ) -> Self {
         Self {
             user_id,
@@ -40,17 +44,20 @@ impl<'a, I, Dl> RumorsEventHandler<'a, I, Dl> {
             sync_dir,
             index,
             download_transfer,
+            rumor_sender,
         }
     }
 }
 
-impl<'a, I, Dl> RumorsEventHandler<'a, I, Dl>
+impl<'a, I, Dl, Si> RumorsEventHandler<'a, I, Dl, Si>
 where
     I: Index,
     <I::Guard as IndexGuard>::Error: Send + Sync + 'static,
     Dl: DownloadTransfer,
     Dl::BlockStream: Unpin,
     Dl::Error: Into<io::Error>,
+    Si: Sink<SendRumors> + Unpin,
+    Si::Error: Error + Send + Sync + 'static,
 {
     pub async fn handle_rumors_event(
         mut self,
@@ -546,7 +553,14 @@ where
         sender_id: &Uuid,
         rumors: Vec<IndexFile>,
     ) -> Result<()> {
-        todo!()
+        let send_rumors = SendRumors {
+            rumors,
+            except: Some(sender_id.clone()),
+        };
+
+        self.rumor_sender.send(send_rumors).await?;
+
+        Ok(())
     }
 }
 

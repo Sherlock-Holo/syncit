@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::io::ErrorKind;
 use std::path::Path;
@@ -6,7 +7,7 @@ use std::time::SystemTime;
 use std::{io, mem};
 
 use anyhow::Result;
-use futures_util::TryStreamExt;
+use futures_util::{Sink, SinkExt, TryStreamExt};
 use tap::TapFallible;
 use tokio::fs;
 use tokio::fs::{DirEntry, File};
@@ -15,30 +16,40 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::index::{FileDetail, FileKind, Index, IndexFile, IndexGuard};
-use crate::sync_control::hash_file;
+use crate::sync_control::{hash_file, SendRumors};
 
-pub struct SyncAllHandler<'a, I> {
+pub struct SyncAllHandler<'a, I, Si> {
     user_id: &'a Uuid,
     dir_id: &'a Uuid,
     sync_dir: &'a Path,
     index: &'a I,
+    rumor_sender: &'a mut Si,
 }
 
-impl<'a, I> SyncAllHandler<'a, I> {
-    pub fn new(user_id: &'a Uuid, dir_id: &'a Uuid, sync_dir: &'a Path, index: &'a I) -> Self {
+impl<'a, I, Si> SyncAllHandler<'a, I, Si> {
+    pub fn new(
+        user_id: &'a Uuid,
+        dir_id: &'a Uuid,
+        sync_dir: &'a Path,
+        index: &'a I,
+        rumor_sender: &'a mut Si,
+    ) -> Self {
         Self {
             user_id,
             dir_id,
             sync_dir,
             index,
+            rumor_sender,
         }
     }
 }
 
-impl<'a, I> SyncAllHandler<'a, I>
+impl<'a, I, Si> SyncAllHandler<'a, I, Si>
 where
     I: Index,
     <I::Guard as IndexGuard>::Error: Send + Sync + 'static,
+    Si: Sink<SendRumors> + Unpin,
+    Si::Error: Error + Send + Sync + 'static,
 {
     pub async fn handle_sync_all_event(mut self) -> Result<()> {
         let dir = self.sync_dir;
@@ -279,7 +290,15 @@ where
         &mut self,
         rumors: Iter,
     ) -> Result<()> {
-        todo!()
+        let rumors = rumors.into_iter().collect::<Vec<_>>();
+        let send_rumors = SendRumors {
+            rumors,
+            except: None,
+        };
+
+        self.rumor_sender.send(send_rumors).await?;
+
+        Ok(())
     }
 }
 

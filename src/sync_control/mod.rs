@@ -35,6 +35,12 @@ pub enum Event {
 }
 
 #[derive(Debug)]
+pub struct SendRumors {
+    pub rumors: Vec<IndexFile>,
+    pub except: Option<Uuid>,
+}
+
+#[derive(Debug)]
 pub struct SyncController<I, St, Si, Dl> {
     user_id: Uuid,
     dir_id: Uuid,
@@ -51,7 +57,8 @@ where
     <I::Guard as IndexGuard>::Error: Send + Sync + 'static,
     E: Error + Send + Sync + 'static,
     St: Stream<Item = Result<Event, E>> + Unpin,
-    Si: Sink<Event>,
+    Si: Sink<SendRumors> + Unpin,
+    Si::Error: Error + Send + Sync + 'static,
     Dl: DownloadTransfer,
     Dl::BlockStream: Unpin,
     Dl::Error: Into<io::Error>,
@@ -74,6 +81,7 @@ where
                         &self.dir_id,
                         &self.sync_dir,
                         &self.index,
+                        &mut self.rumor_sender,
                     );
 
                     handler.handle_watch_events(watch_events).await?;
@@ -91,6 +99,7 @@ where
                         &self.sync_dir,
                         &self.index,
                         &self.download_transfer,
+                        &mut self.rumor_sender,
                     );
 
                     rumors_event_handler
@@ -106,6 +115,7 @@ where
                         &self.dir_id,
                         &self.sync_dir,
                         &self.index,
+                        &mut self.rumor_sender,
                     );
 
                     sync_all_handler.handle_sync_all_event().await?;
