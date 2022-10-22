@@ -20,7 +20,7 @@ pub struct WatchEventHandler<'a, I, Si> {
     dir_id: &'a Uuid,
     sync_dir: &'a Path,
     index: &'a I,
-    rumor_sender: &'a mut Si,
+    rumor_sender: Si,
 }
 
 impl<'a, I, Si> WatchEventHandler<'a, I, Si> {
@@ -29,7 +29,7 @@ impl<'a, I, Si> WatchEventHandler<'a, I, Si> {
         dir_id: &'a Uuid,
         sync_dir: &'a Path,
         index: &'a I,
-        rumor_sender: &'a mut Si,
+        rumor_sender: Si,
     ) -> Self {
         Self {
             user_id,
@@ -544,6 +544,7 @@ where
             },
         );
         old_info.block_chain.take();
+        index_file.previous_details.push(old_info);
 
         index_guard.update_file(&index_file).await?;
 
@@ -557,6 +558,12 @@ where
         rumors: Iter,
     ) -> Result<()> {
         let rumors = rumors.into_iter().collect::<Vec<_>>();
+        if rumors.is_empty() {
+            info!("ignore empty rumors");
+
+            return Ok(());
+        }
+
         let send_rumors = SendRumors {
             rumors,
             except: None,
@@ -567,3 +574,12 @@ where
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod add_tests;
+#[cfg(test)]
+mod delete_tests;
+#[cfg(test)]
+mod modify_tests;
+#[cfg(test)]
+mod rename_tests;

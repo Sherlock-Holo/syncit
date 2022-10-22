@@ -23,7 +23,7 @@ pub struct SyncAllHandler<'a, I, Si> {
     dir_id: &'a Uuid,
     sync_dir: &'a Path,
     index: &'a I,
-    rumor_sender: &'a mut Si,
+    rumor_sender: Si,
 }
 
 impl<'a, I, Si> SyncAllHandler<'a, I, Si> {
@@ -32,7 +32,7 @@ impl<'a, I, Si> SyncAllHandler<'a, I, Si> {
         dir_id: &'a Uuid,
         sync_dir: &'a Path,
         index: &'a I,
-        rumor_sender: &'a mut Si,
+        rumor_sender: Si,
     ) -> Self {
         Self {
             user_id,

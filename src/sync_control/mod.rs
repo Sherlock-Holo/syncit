@@ -34,7 +34,7 @@ pub enum Event {
     SyncAll,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct SendRumors {
     pub rumors: Vec<IndexFile>,
     pub except: Option<Uuid>,

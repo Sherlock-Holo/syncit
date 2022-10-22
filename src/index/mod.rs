@@ -1,9 +1,13 @@
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
+use std::io;
+use std::ops::DerefMut;
+use std::pin::Pin;
 use std::time::SystemTime;
 
 use async_trait::async_trait;
 use futures_util::Stream;
+use mockall::automock;
 
 mod sqlite_index;
 
@@ -49,6 +53,7 @@ pub struct IndexFile {
     pub update_by: String,
 }
 
+#[automock(type Error = io::Error; type IndexStream = Pin < Box < dyn Stream < Item = Result < IndexFile, io::Error >> >>; type Guard = MockIndexGuard;)]
 #[async_trait]
 pub trait Index {
     type Error: Error;
@@ -62,6 +67,7 @@ pub trait Index {
     async fn begin(&self) -> Result<Self::Guard, Self::Error>;
 }
 
+#[automock(type Error = io::Error; type IndexStream = Pin < Box < dyn Stream < Item = Result < IndexFile, io::Error >> >>;)]
 #[async_trait]
 pub trait IndexGuard {
     type Error: Error;
@@ -76,4 +82,35 @@ pub trait IndexGuard {
     async fn update_file(&mut self, file: &IndexFile) -> Result<(), Self::Error>;
 
     async fn commit(self) -> Result<(), Self::Error>;
+}
+
+#[async_trait]
+impl<G> IndexGuard for Box<G>
+where
+    G: IndexGuard + Send,
+    G::Error: Send + Sync + 'static,
+{
+    type Error = G::Error;
+    type IndexStream = G::IndexStream;
+
+    async fn list_all_files(&mut self) -> Result<Self::IndexStream, Self::Error> {
+        self.deref_mut().deref_mut().list_all_files().await
+    }
+
+    async fn create_file(&mut self, file: &IndexFile) -> Result<(), Self::Error> {
+        self.deref_mut().deref_mut().create_file(file).await
+    }
+
+    async fn get_file(&mut self, filename: &OsStr) -> Result<Option<IndexFile>, Self::Error> {
+        self.deref_mut().deref_mut().get_file(filename).await
+    }
+
+    async fn update_file(&mut self, file: &IndexFile) -> Result<(), Self::Error> {
+        self.deref_mut().deref_mut().update_file(file).await
+    }
+
+    async fn commit(mut self) -> Result<(), Self::Error> {
+        let this = *self;
+        this.commit().await
+    }
 }

@@ -26,7 +26,7 @@ pub struct RumorsEventHandler<'a, I, Dl, Si> {
     sync_dir: &'a Path,
     index: &'a I,
     download_transfer: &'a Dl,
-    rumor_sender: &'a mut Si,
+    rumor_sender: Si,
 }
 
 impl<'a, I, Dl, Si> RumorsEventHandler<'a, I, Dl, Si> {
@@ -36,7 +36,7 @@ impl<'a, I, Dl, Si> RumorsEventHandler<'a, I, Dl, Si> {
         sync_dir: &'a Path,
         index: &'a I,
         download_transfer: &'a Dl,
-        rumor_sender: &'a mut Si,
+        rumor_sender: Si,
     ) -> Self {
         Self {
             user_id,
