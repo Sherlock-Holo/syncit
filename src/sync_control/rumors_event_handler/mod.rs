@@ -3,10 +3,12 @@ use std::error::Error;
 use std::ffi::OsStr;
 use std::io::ErrorKind;
 use std::path::Path;
+use std::pin::pin;
 use std::{io, u64};
 
 use anyhow::{anyhow, Result};
 use chrono::{FixedOffset, Utc};
+use futures_util::stream::FuturesUnordered;
 use futures_util::{Sink, SinkExt, Stream, TryStreamExt};
 use itertools::{EitherOrBoth, Itertools};
 use tap::TapFallible;
@@ -66,7 +68,7 @@ where
     ) -> Result<()> {
         let mut new_rumors = Vec::with_capacity(rumors.len());
         for rumor in rumors {
-            let new = self.handle_rumor_event(&rumor).await?;
+            let new = self.handle_rumor(&rumor).await?;
 
             info!(new, filename = ?rumor.filename, "handle rumor done");
 
@@ -85,7 +87,7 @@ where
     }
 
     /// when return false, means the rumor is old and should be ignore
-    async fn handle_rumor_event(&mut self, remote_index_file: &IndexFile) -> Result<bool> {
+    async fn handle_rumor(&mut self, remote_index_file: &IndexFile) -> Result<bool> {
         let mut index_guard = self.index.begin().await?;
 
         match index_guard.get_file(&remote_index_file.filename).await? {
@@ -156,7 +158,11 @@ where
 
                 info!(?download_block_requests, "get block stream done");
 
-                sync_file(&file, block_stream).await?;
+                if !sync_file(&remote_index_file.filename, &file, block_stream).await? {
+                    warn!(filename = ?remote_index_file.filename, "sync file canceled");
+
+                    return Ok(false);
+                }
 
                 info!(?path, "sync file data done");
 
@@ -212,6 +218,12 @@ where
         local_index_file: &IndexFile,
         mut index_guard: I::Guard,
     ) -> Result<bool> {
+        if remote_index_file == local_index_file {
+            info!("nothing changed");
+
+            return Ok(false);
+        }
+
         // remote and local change together so they have same gen but different update time,
         // however, local is newer, so ignore remote
         if remote_index_file.update_time < local_index_file.update_time {
@@ -294,7 +306,7 @@ where
 
             info!(?download_block_requests, "get block stream done");
 
-            sync_file(&temp_file, block_stream).await?;
+            sync_file(&remote_index_file.filename, &temp_file, block_stream).await?;
 
             info!("sync file data done");
 
@@ -312,12 +324,6 @@ where
             info!("index guard commit done");
 
             return Ok(true);
-        }
-
-        if remote_index_file == local_index_file {
-            info!("nothing changed");
-
-            return Ok(false);
         }
 
         warn!(
@@ -458,7 +464,7 @@ where
 
             info!(?download_block_requests, "get block stream done");
 
-            sync_file(&temp_file, block_stream).await?;
+            sync_file(&remote_index_file.filename, &temp_file, block_stream).await?;
 
             info!(?path, "sync file data done");
 
@@ -530,7 +536,7 @@ where
 
         info!(?download_block_requests, "get block stream done");
 
-        sync_file(&temp_file, block_stream).await?;
+        sync_file(&remote_index_file.filename, &temp_file, block_stream).await?;
 
         info!(?path, "sync file data done");
 
@@ -555,7 +561,7 @@ where
     ) -> Result<()> {
         let send_rumors = SendRumors {
             rumors,
-            except: Some(sender_id.clone()),
+            except: Some(*sender_id),
         };
 
         self.rumor_sender.send(send_rumors).await?;
@@ -584,7 +590,7 @@ async fn create_conflict_file_from(
         .with_timezone(&FixedOffset::east(8 * 3600))
         .format("%Y-%m-%d-%H-%M-%S");
     let mut filename = filename.to_os_string();
-    filename.push(format!(".{}", now_str));
+    filename.push(format!(".{now_str}"));
     filename.push(".conflict");
 
     let conflict_file = OpenOptions::new()
@@ -610,20 +616,41 @@ async fn create_conflict_file_from(
     Ok(())
 }
 
-async fn sync_file<S: Stream<Item = io::Result<DownloadBlock>>>(
+async fn sync_file<S: Stream<Item = io::Result<Option<DownloadBlock>>>>(
+    filename: &OsStr,
     file: &File,
     block_stream: S,
-) -> io::Result<()> {
-    block_stream
-        .map_err(Into::into)
-        .try_for_each_concurrent(None, |download_block| async move {
-            file.write_at(&download_block.data, download_block.offset)
-                .await
-                .tap_err(|err| error!(%err, offset = download_block.offset, "write at failed"))?;
+) -> io::Result<bool> {
+    let futures_unordered = FuturesUnordered::new();
+    let mut block_stream = pin!(block_stream.map_err(io::Error::from));
+    while let Some(download_block) = block_stream.try_next().await? {
+        match download_block {
+            None => {
+                warn!(?filename, "can't find block, maybe file is outdated");
 
-            Ok(())
-        })
+                return Ok(false);
+            }
+
+            Some(download_block) => {
+                futures_unordered.push(async move {
+                    file.write_at(&download_block.data, download_block.offset)
+                        .await
+                        .tap_err(
+                            |err| error!(%err, offset = download_block.offset, "write at failed"),
+                        )?;
+
+                    Ok::<_, io::Error>(())
+                });
+            }
+        }
+    }
+
+    futures_unordered
+        .try_collect()
         .await
+        .tap_err(|err| error!(%err, "write at failed"))?;
+
+    Ok(true)
 }
 
 fn compare_blocks(left_blocks: &[Block], right_blocks: &[Block]) -> Vec<DownloadBlockRequest> {
@@ -653,3 +680,6 @@ fn compare_blocks(left_blocks: &[Block], right_blocks: &[Block]) -> Vec<Download
         })
         .collect::<Vec<_>>()
 }
+
+#[cfg(test)]
+mod tests;
