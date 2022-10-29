@@ -3,6 +3,7 @@ use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::io::ErrorKind;
 use std::path::Path;
+use std::pin::pin;
 use std::time::SystemTime;
 use std::{io, mem};
 
@@ -270,7 +271,7 @@ where
 
         info!("get all file index stream done");
 
-        futures_util::pin_mut!(all_file_index_stream);
+        let all_file_index_stream = pin!(all_file_index_stream);
 
         let index_files = all_file_index_stream
             .try_collect::<Vec<_>>()
@@ -345,3 +346,6 @@ fn get_exists_files<'a>(
         .map(|filename| filename.as_os_str())
         .collect()
 }
+
+#[cfg(test)]
+mod tests;
