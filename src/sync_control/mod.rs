@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use bytes::BytesMut;
+use event::Event;
 use futures_util::{Sink, Stream, TryStreamExt};
 use sha2::{Digest, Sha256};
 use tap::TapFallible;
@@ -11,28 +12,16 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::file_event_produce::WatchEvent;
 use crate::index::{Block, BlockChain, Index, IndexFile, IndexGuard, Sha256sum, BLOCK_SIZE};
 use crate::sync_control::rumors_event_handler::RumorsEventHandler;
 use crate::sync_control::sync_all_handler::SyncAllHandler;
 use crate::sync_control::watch_event_handler::WatchEventHandler;
 use crate::transfer::DownloadTransfer;
 
+pub mod event;
 mod rumors_event_handler;
 mod sync_all_handler;
 mod watch_event_handler;
-
-#[derive(Debug)]
-pub enum Event {
-    WatchEvent(Vec<WatchEvent>),
-
-    Rumors {
-        sender_id: Uuid,
-        remote_index: Vec<IndexFile>,
-    },
-
-    SyncAll,
-}
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct SendRumors {
@@ -75,7 +64,7 @@ where
             info!("pause watch done");
 
             match event {
-                Event::WatchEvent(watch_events) => {
+                Event::Watch(watch_events) => {
                     let handler = WatchEventHandler::new(
                         &self.user_id,
                         &self.dir_id,

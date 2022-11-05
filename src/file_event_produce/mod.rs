@@ -1,4 +1,7 @@
+use std::error::Error;
 use std::ffi::OsString;
+
+mod producer;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum WatchEvent {
@@ -18,4 +21,12 @@ pub enum WatchEvent {
     Delete {
         name: OsString,
     },
+}
+
+pub trait WatchControl {
+    type Error: Error;
+
+    async fn pause_watch(&mut self) -> Result<(), Self::Error>;
+
+    async fn resume_watch(&mut self) -> Result<(), Self::Error>;
 }

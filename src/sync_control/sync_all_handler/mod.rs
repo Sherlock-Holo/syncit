@@ -306,7 +306,7 @@ where
 fn get_new_files<'a>(
     entries: &'a HashMap<OsString, DirEntry>,
     index_files: &'a HashMap<OsString, IndexFile>,
-) -> Vec<&OsStr> {
+) -> Vec<&'a OsStr> {
     entries
         .keys()
         .filter_map(|filename| match index_files.get(filename) {
@@ -319,7 +319,7 @@ fn get_new_files<'a>(
 fn get_delete_files<'a>(
     entries: &'a HashMap<OsString, DirEntry>,
     index_files: &'a HashMap<OsString, IndexFile>,
-) -> Vec<&OsStr> {
+) -> Vec<&'a OsStr> {
     index_files
         .values()
         .filter_map(|index_file| {
@@ -336,7 +336,7 @@ fn get_delete_files<'a>(
 fn get_exists_files<'a>(
     entries: &'a HashMap<OsString, DirEntry>,
     index_files: &'a HashMap<OsString, IndexFile>,
-) -> Vec<&OsStr> {
+) -> Vec<&'a OsStr> {
     entries
         .keys()
         .filter(|filename| match index_files.get(*filename) {
