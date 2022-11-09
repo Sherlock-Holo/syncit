@@ -312,7 +312,7 @@ mod tests {
         let _file = OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(file_path.clone())
+            .open(&file_path)
             .await
             .unwrap();
 
@@ -352,7 +352,7 @@ mod tests {
             .create_new(true)
             .read(true)
             .write(true)
-            .open(file_path.clone())
+            .open(&file_path)
             .await
             .unwrap();
 
@@ -399,7 +399,7 @@ mod tests {
         OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(file_path.clone())
+            .open(&file_path)
             .await
             .unwrap();
 
@@ -444,7 +444,7 @@ mod tests {
         OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(file_path.clone())
+            .open(&file_path)
             .await
             .unwrap();
 
@@ -452,6 +452,100 @@ mod tests {
         tokio::spawn(async move { producer.run().await });
 
         fs::remove_file(&file_path).await.unwrap();
+
+        let event = receiver.recv_async().await.unwrap();
+
+        controller.pause_watch().await.unwrap();
+
+        let watch_events = match event {
+            Event::Watch(watch_events) => watch_events,
+            _ => {
+                panic!("wrong event type")
+            }
+        };
+
+        assert_eq!(watch_events.len(), 1);
+        assert_eq!(
+            &watch_events[0],
+            &WatchEvent::Delete {
+                name: file_path.into_os_string()
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_move_in() {
+        let temp_dir = tempfile::tempdir_in(env::temp_dir()).unwrap();
+        let temp_dir_path = temp_dir.path();
+        let sub_dir_path = temp_dir_path.join("sub");
+        let (sender, receiver) = flume::unbounded();
+        let sender = sender
+            .into_sink()
+            .sink_map_err(|err| io::Error::new(IoErrorKind::Other, err));
+        let (mut producer, mut controller) =
+            Producer::new(temp_dir_path.to_path_buf(), sender).unwrap();
+
+        fs::create_dir(&sub_dir_path).await.unwrap();
+        let file_path = sub_dir_path.join("test.txt");
+        OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&file_path)
+            .await
+            .unwrap();
+
+        controller.resume_watch().await.unwrap();
+        tokio::spawn(async move { producer.run().await });
+
+        let new_file_path = temp_dir_path.join("test.txt");
+        fs::rename(file_path, &new_file_path).await.unwrap();
+
+        let event = receiver.recv_async().await.unwrap();
+
+        controller.pause_watch().await.unwrap();
+
+        let watch_events = match event {
+            Event::Watch(watch_events) => watch_events,
+            _ => {
+                panic!("wrong event type")
+            }
+        };
+
+        assert_eq!(watch_events.len(), 1);
+        assert_eq!(
+            &watch_events[0],
+            &WatchEvent::Add {
+                name: new_file_path.into_os_string()
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_move_out() {
+        let temp_dir = tempfile::tempdir_in(env::temp_dir()).unwrap();
+        let temp_dir_path = temp_dir.path();
+        let sub_dir_path = temp_dir_path.join("sub");
+        let (sender, receiver) = flume::unbounded();
+        let sender = sender
+            .into_sink()
+            .sink_map_err(|err| io::Error::new(IoErrorKind::Other, err));
+        let (mut producer, mut controller) =
+            Producer::new(temp_dir_path.to_path_buf(), sender).unwrap();
+
+        fs::create_dir(&sub_dir_path).await.unwrap();
+        let file_path = temp_dir_path.join("test.txt");
+        OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&file_path)
+            .await
+            .unwrap();
+
+        controller.resume_watch().await.unwrap();
+        tokio::spawn(async move { producer.run().await });
+
+        let new_file_path = sub_dir_path.join("test.txt");
+        fs::rename(&file_path, &new_file_path).await.unwrap();
 
         let event = receiver.recv_async().await.unwrap();
 
