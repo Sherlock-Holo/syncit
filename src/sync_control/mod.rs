@@ -25,6 +25,7 @@ mod watch_event_handler;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct SendRumors {
+    pub dir_id: Uuid,
     pub rumors: Vec<IndexFile>,
     pub except: Option<Uuid>,
 }

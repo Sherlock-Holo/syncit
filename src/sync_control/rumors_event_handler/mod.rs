@@ -560,6 +560,7 @@ where
         rumors: Vec<IndexFile>,
     ) -> Result<()> {
         let send_rumors = SendRumors {
+            dir_id: *self.dir_id,
             rumors,
             except: Some(*sender_id),
         };

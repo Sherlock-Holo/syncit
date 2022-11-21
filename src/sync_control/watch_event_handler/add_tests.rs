@@ -76,6 +76,7 @@ async fn add_event() {
 
     let mut send_rumors = receiver.recv_async().await.unwrap();
 
+    assert_eq!(send_rumors.dir_id, dir_id);
     assert!(send_rumors.except.is_none());
     assert_eq!(send_rumors.rumors.len(), 1);
     let rumor = send_rumors.rumors.remove(0);
@@ -194,6 +195,7 @@ async fn add_event_with_deleted_index() {
 
     let mut send_rumors = receiver.recv_async().await.unwrap();
 
+    assert_eq!(send_rumors.dir_id, dir_id);
     assert!(send_rumors.except.is_none());
     assert_eq!(send_rumors.rumors.len(), 1);
     let rumor = send_rumors.rumors.remove(0);
@@ -320,6 +322,7 @@ async fn add_event_with_exists_index() {
 
     let mut send_rumors = receiver.recv_async().await.unwrap();
 
+    assert_eq!(send_rumors.dir_id, dir_id);
     assert!(send_rumors.except.is_none());
     assert_eq!(send_rumors.rumors.len(), 1);
     let rumor = send_rumors.rumors.remove(0);

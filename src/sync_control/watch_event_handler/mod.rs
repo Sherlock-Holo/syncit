@@ -565,6 +565,7 @@ where
         }
 
         let send_rumors = SendRumors {
+            dir_id: *self.dir_id,
             rumors,
             except: None,
         };

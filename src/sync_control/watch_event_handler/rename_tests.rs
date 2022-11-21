@@ -82,6 +82,7 @@ async fn rename_event() {
 
     let mut send_rumors = receiver.recv_async().await.unwrap();
 
+    assert_eq!(send_rumors.dir_id, dir_id);
     assert!(send_rumors.except.is_none());
     assert_eq!(send_rumors.rumors.len(), 1);
     let rumor = send_rumors.rumors.remove(0);
@@ -214,6 +215,7 @@ async fn rename_event_with_old_file() {
 
     let mut send_rumors = receiver.recv_async().await.unwrap();
 
+    assert_eq!(send_rumors.dir_id, dir_id);
     assert!(send_rumors.except.is_none());
     assert_eq!(send_rumors.rumors.len(), 2);
     let rumor = send_rumors.rumors.remove(0);
@@ -349,6 +351,7 @@ async fn rename_event_with_old_deleted_file() {
 
     let mut send_rumors = receiver.recv_async().await.unwrap();
 
+    assert_eq!(send_rumors.dir_id, dir_id);
     assert!(send_rumors.except.is_none());
     assert_eq!(send_rumors.rumors.len(), 1);
 
@@ -469,6 +472,7 @@ async fn rename_event_with_exist_new_file() {
 
     let mut send_rumors = receiver.recv_async().await.unwrap();
 
+    assert_eq!(send_rumors.dir_id, dir_id);
     assert!(send_rumors.except.is_none());
     assert_eq!(send_rumors.rumors.len(), 1);
     let rumor = send_rumors.rumors.remove(0);
@@ -602,6 +606,7 @@ async fn rename_event_with_deleted_new_file() {
 
     let mut send_rumors = receiver.recv_async().await.unwrap();
 
+    assert_eq!(send_rumors.dir_id, dir_id);
     assert!(send_rumors.except.is_none());
     assert_eq!(send_rumors.rumors.len(), 1);
     let rumor = send_rumors.rumors.remove(0);

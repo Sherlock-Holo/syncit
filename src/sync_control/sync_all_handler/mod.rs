@@ -293,6 +293,7 @@ where
     ) -> Result<()> {
         let rumors = rumors.into_iter().collect::<Vec<_>>();
         let send_rumors = SendRumors {
+            dir_id: *self.dir_id,
             rumors,
             except: None,
         };

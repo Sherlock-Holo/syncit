@@ -41,6 +41,7 @@ async fn all_empty() {
     assert_eq!(
         receiver.recv_async().await.unwrap(),
         SendRumors {
+            dir_id,
             rumors: vec![],
             except: None,
         }
