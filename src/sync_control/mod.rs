@@ -12,6 +12,7 @@ use tokio::io::{AsyncRead, AsyncReadExt};
 use tracing::{error, info};
 use uuid::Uuid;
 
+use crate::file_event_produce::WatchControl;
 use crate::index::{Block, BlockChain, Index, IndexFile, IndexGuard, Sha256sum, BLOCK_SIZE};
 use crate::sync_control::rumors_event_handler::RumorsEventHandler;
 use crate::sync_control::sync_all_handler::SyncAllHandler;
@@ -31,7 +32,7 @@ pub struct SendRumors {
 }
 
 #[derive(Debug)]
-pub struct SyncController<I, St, Si, Dl> {
+pub struct SyncController<I, St, Si, Dl, Wc> {
     user_id: Uuid,
     dir_id: Uuid,
     sync_dir: PathBuf,
@@ -39,19 +40,22 @@ pub struct SyncController<I, St, Si, Dl> {
     event_stream: St,
     rumor_sender: Si,
     download_transfer: Dl,
+    watch_control: Wc,
 }
 
-impl<I, St, Si, E, Dl> SyncController<I, St, Si, Dl>
+impl<I, St, Si, Dl, Wc, E1, E2> SyncController<I, St, Si, Dl, Wc>
 where
     I: Index,
     <I::Guard as IndexGuard>::Error: Send + Sync + 'static,
-    E: Error + Send + Sync + 'static,
-    St: Stream<Item = Result<Event, E>> + Unpin,
+    E1: Error + Send + Sync + 'static,
+    St: Stream<Item = Result<Event, E1>> + Unpin,
     Si: Sink<SendRumors> + Unpin,
     Si::Error: Error + Send + Sync + 'static,
     Dl: DownloadTransfer,
     Dl::BlockStream: Unpin,
     Dl::Error: Into<io::Error>,
+    Wc: WatchControl<Error = E2>,
+    E2: Error + Send + Sync + 'static,
 {
     pub async fn run(&mut self) -> Result<()> {
         while let Some(event) = self
@@ -123,13 +127,23 @@ where
     }
 }
 
-impl<I, St, Si, Dl> SyncController<I, St, Si, Dl> {
+impl<I, St, Si, Dl, Wc, E> SyncController<I, St, Si, Dl, Wc>
+where
+    Wc: WatchControl<Error = E>,
+    E: Error + Send + Sync + 'static,
+{
+    #[inline]
     async fn pause_watch(&mut self) -> Result<()> {
-        todo!()
+        self.watch_control.pause_watch().await?;
+
+        Ok(())
     }
 
+    #[inline]
     async fn resume_watch(&mut self) -> Result<()> {
-        todo!()
+        self.watch_control.resume_watch().await?;
+
+        Ok(())
     }
 }
 
