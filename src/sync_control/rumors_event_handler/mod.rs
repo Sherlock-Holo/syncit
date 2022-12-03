@@ -588,7 +588,7 @@ async fn create_conflict_file_from(
     filename: &OsStr,
 ) -> io::Result<()> {
     let now_str = Utc::now()
-        .with_timezone(&FixedOffset::east(8 * 3600))
+        .with_timezone(&FixedOffset::east_opt(8 * 3600).expect("create fixed offset failed"))
         .format("%Y-%m-%d-%H-%M-%S");
     let mut filename = filename.to_os_string();
     filename.push(format!(".{now_str}"));
