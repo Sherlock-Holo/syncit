@@ -82,20 +82,21 @@ where
             .await?;
 
         let mut index_guard = self.index.begin().await?;
+        let index_files = {
+            info!("get index guard done");
 
-        info!("get index guard done");
+            let all_file_index_stream = index_guard.list_all_files().await?;
 
-        let all_file_index_stream = index_guard.list_all_files().await?;
+            info!("get all file index stream done");
 
-        info!("get all file index stream done");
+            let all_file_index_stream = pin!(all_file_index_stream);
 
-        futures_util::pin_mut!(all_file_index_stream);
-
-        let index_files = all_file_index_stream
-            .map_ok(|index_file: IndexFile| (index_file.filename.clone(), index_file))
-            .try_collect::<HashMap<_, _>>()
-            .await
-            .tap_err(|err| error!(%err, "collect all index files failed"))?;
+            all_file_index_stream
+                .map_ok(|index_file: IndexFile| (index_file.filename.clone(), index_file))
+                .try_collect::<HashMap<_, _>>()
+                .await
+                .tap_err(|err| error!(%err, "collect all index files failed"))?
+        };
 
         let new_files = get_new_files(&entries, &index_files);
         let delete_files = get_delete_files(&entries, &index_files);
@@ -267,16 +268,18 @@ where
             }
         }
 
-        let all_file_index_stream = index_guard.list_all_files().await?;
+        let index_files = {
+            let all_file_index_stream = index_guard.list_all_files().await?;
 
-        info!("get all file index stream done");
+            info!("get all file index stream done");
 
-        let all_file_index_stream = pin!(all_file_index_stream);
+            let all_file_index_stream = pin!(all_file_index_stream);
 
-        let index_files = all_file_index_stream
-            .try_collect::<Vec<_>>()
-            .await
-            .tap_err(|err| error!(%err, "collect all index files failed"))?;
+            all_file_index_stream
+                .try_collect::<Vec<_>>()
+                .await
+                .tap_err(|err| error!(%err, "collect all index files failed"))?
+        };
 
         info!("collect all index file done");
 
