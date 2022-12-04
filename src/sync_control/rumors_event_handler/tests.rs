@@ -11,8 +11,8 @@ use tempfile::TempDir;
 use tokio_stream::wrappers::ReadDirStream;
 
 use super::*;
+use crate::ext::hash_file;
 use crate::index::{FileDetail, FileKind, MockIndex, MockIndexGuard};
-use crate::sync_control::hash_file;
 use crate::transfer::MockDownloadTransfer;
 
 #[tokio::test]
@@ -65,7 +65,11 @@ async fn local_not_exist() {
         download_transfer
             .expect_download()
             .with(function(move |arg: &[DownloadBlockRequest]| {
-                blocks_to_download_block_requests(&block_chain.blocks) == arg
+                blocks_to_download_block_requests(
+                    dir_id,
+                    Path::new("test.txt"),
+                    &block_chain.blocks,
+                ) == arg
             }))
             .returning(|_| {
                 Ok(Box::pin(stream::iter([Ok(Some(DownloadBlock {
@@ -78,8 +82,8 @@ async fn local_not_exist() {
     let (sender, receiver) = flume::bounded(1);
 
     let handler = RumorsEventHandler::new(
-        &user_id,
-        &dir_id,
+        user_id,
+        dir_id,
         dir.path(),
         &index,
         &download_transfer,
@@ -88,7 +92,7 @@ async fn local_not_exist() {
 
     handler
         .handle_rumors_event(
-            &user_id,
+            user_id,
             vec![IndexFile {
                 filename: OsString::from("test.txt"),
                 kind: FileKind::File,
@@ -181,8 +185,8 @@ async fn local_is_latest() {
     let (sender, receiver) = flume::bounded(1);
 
     let handler = RumorsEventHandler::new(
-        &user_id,
-        &dir_id,
+        user_id,
+        dir_id,
         dir.path(),
         &index,
         &download_transfer,
@@ -191,7 +195,7 @@ async fn local_is_latest() {
 
     handler
         .handle_rumors_event(
-            &user_id,
+            user_id,
             vec![IndexFile {
                 filename: OsString::from("test.txt"),
                 kind: FileKind::File,
@@ -290,7 +294,11 @@ async fn remote_is_latest() {
         download_transfer
             .expect_download()
             .with(function(move |arg: &[DownloadBlockRequest]| {
-                blocks_to_download_block_requests(&block_chain.blocks) == arg
+                blocks_to_download_block_requests(
+                    dir_id,
+                    Path::new("test.txt"),
+                    &block_chain.blocks,
+                ) == arg
             }))
             .returning(|_| {
                 Ok(Box::pin(stream::iter([Ok(Some(DownloadBlock {
@@ -303,8 +311,8 @@ async fn remote_is_latest() {
     let (sender, receiver) = flume::bounded(1);
 
     let handler = RumorsEventHandler::new(
-        &user_id,
-        &dir_id,
+        user_id,
+        dir_id,
         dir.path(),
         &index,
         &download_transfer,
@@ -313,7 +321,7 @@ async fn remote_is_latest() {
 
     handler
         .handle_rumors_event(
-            &user_id,
+            user_id,
             vec![IndexFile {
                 filename: OsString::from("test.txt"),
                 kind: FileKind::File,
@@ -414,8 +422,8 @@ async fn local_remote_same() {
     let (sender, receiver) = flume::bounded(1);
 
     let handler = RumorsEventHandler::new(
-        &user_id,
-        &dir_id,
+        user_id,
+        dir_id,
         dir.path(),
         &index,
         &download_transfer,
@@ -424,7 +432,7 @@ async fn local_remote_same() {
 
     handler
         .handle_rumors_event(
-            &user_id,
+            user_id,
             vec![IndexFile {
                 filename: OsString::from("test.txt"),
                 kind: FileKind::File,
@@ -495,8 +503,8 @@ async fn eq_gen_local_latest() {
     let (sender, receiver) = flume::bounded(1);
 
     let handler = RumorsEventHandler::new(
-        &user_id,
-        &dir_id,
+        user_id,
+        dir_id,
         dir.path(),
         &index,
         &download_transfer,
@@ -505,7 +513,7 @@ async fn eq_gen_local_latest() {
 
     handler
         .handle_rumors_event(
-            &user_id,
+            user_id,
             vec![IndexFile {
                 filename: OsString::from("test.txt"),
                 kind: FileKind::File,
@@ -602,7 +610,11 @@ async fn eq_gen_remote_latest() {
         download_transfer
             .expect_download()
             .with(function(move |arg: &[DownloadBlockRequest]| {
-                blocks_to_download_block_requests(&new_block_chain.blocks) == arg
+                blocks_to_download_block_requests(
+                    dir_id,
+                    Path::new("test.txt"),
+                    &new_block_chain.blocks,
+                ) == arg
             }))
             .returning(|_| {
                 Ok(Box::pin(stream::iter([Ok(Some(DownloadBlock {
@@ -615,8 +627,8 @@ async fn eq_gen_remote_latest() {
     let (sender, receiver) = flume::bounded(1);
 
     let handler = RumorsEventHandler::new(
-        &user_id,
-        &dir_id,
+        user_id,
+        dir_id,
         dir.path(),
         &index,
         &download_transfer,
@@ -625,7 +637,7 @@ async fn eq_gen_remote_latest() {
 
     handler
         .handle_rumors_event(
-            &user_id,
+            user_id,
             vec![IndexFile {
                 filename: OsString::from("test.txt"),
                 kind: FileKind::File,
@@ -728,7 +740,11 @@ async fn no_require_block() {
         download_transfer
             .expect_download()
             .with(function(move |arg: &[DownloadBlockRequest]| {
-                blocks_to_download_block_requests(&block_chain.blocks) == arg
+                blocks_to_download_block_requests(
+                    dir_id,
+                    Path::new("test.txt"),
+                    &block_chain.blocks,
+                ) == arg
             }))
             .returning(|_| Ok(Box::pin(stream::iter([Ok(None)]))));
     }
@@ -736,8 +752,8 @@ async fn no_require_block() {
     let (sender, receiver) = flume::bounded(1);
 
     let handler = RumorsEventHandler::new(
-        &user_id,
-        &dir_id,
+        user_id,
+        dir_id,
         dir.path(),
         &index,
         &download_transfer,
@@ -746,7 +762,7 @@ async fn no_require_block() {
 
     handler
         .handle_rumors_event(
-            &user_id,
+            user_id,
             vec![IndexFile {
                 filename: OsString::from("test.txt"),
                 kind: FileKind::File,

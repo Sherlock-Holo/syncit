@@ -6,6 +6,7 @@ use mockall::predicate::*;
 use tempfile::TempDir;
 
 use super::*;
+use crate::ext::hash_file;
 use crate::index::{MockIndex, MockIndexGuard};
 
 #[tokio::test]

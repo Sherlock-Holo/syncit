@@ -23,8 +23,8 @@ use crate::sync_control::SendRumors;
 use crate::transfer::{DownloadBlock, DownloadBlockRequest, DownloadTransfer};
 
 pub struct RumorsEventHandler<'a, I, Dl, Si> {
-    user_id: &'a Uuid,
-    dir_id: &'a Uuid,
+    user_id: Uuid,
+    dir_id: Uuid,
     sync_dir: &'a Path,
     index: &'a I,
     download_transfer: &'a Dl,
@@ -33,8 +33,8 @@ pub struct RumorsEventHandler<'a, I, Dl, Si> {
 
 impl<'a, I, Dl, Si> RumorsEventHandler<'a, I, Dl, Si> {
     pub fn new(
-        user_id: &'a Uuid,
-        dir_id: &'a Uuid,
+        user_id: Uuid,
+        dir_id: Uuid,
         sync_dir: &'a Path,
         index: &'a I,
         download_transfer: &'a Dl,
@@ -51,19 +51,19 @@ impl<'a, I, Dl, Si> RumorsEventHandler<'a, I, Dl, Si> {
     }
 }
 
-impl<'a, I, Dl, Si> RumorsEventHandler<'a, I, Dl, Si>
+impl<'a, 'b, I, Dl, Si> RumorsEventHandler<'a, I, Dl, Si>
 where
     I: Index,
     <I::Guard as IndexGuard>::Error: Send + Sync + 'static,
-    Dl: DownloadTransfer,
-    Dl::BlockStream: Unpin,
+    Dl: DownloadTransfer + 'b,
+    Dl::BlockStream<'b>: Unpin,
     Dl::Error: Into<io::Error>,
     Si: Sink<SendRumors> + Unpin,
     Si::Error: Error + Send + Sync + 'static,
 {
     pub async fn handle_rumors_event(
         mut self,
-        sender_id: &Uuid,
+        sender_id: Uuid,
         rumors: Vec<IndexFile>,
     ) -> Result<()> {
         let mut new_rumors = Vec::with_capacity(rumors.len());
@@ -146,8 +146,11 @@ where
                     .await
                     .tap_err(|err| error!(%err, ?path, "set file size failed"))?;
 
-                let download_block_requests =
-                    blocks_to_download_block_requests(&block_chain.blocks);
+                let download_block_requests = blocks_to_download_block_requests(
+                    self.dir_id,
+                    Path::new(&remote_index_file.filename),
+                    &block_chain.blocks,
+                );
 
                 let block_stream = self
                     .download_transfer
@@ -294,8 +297,11 @@ where
                 .await
                 .tap_err(|err| error!(%err, "set temp file size failed"))?;
 
-            let download_block_requests =
-                blocks_to_download_block_requests(&remote_block_chain.blocks);
+            let download_block_requests = blocks_to_download_block_requests(
+                self.dir_id,
+                Path::new(&remote_index_file.filename),
+                &remote_block_chain.blocks,
+            );
 
             let block_stream = self
                 .download_transfer
@@ -448,11 +454,18 @@ where
                 .tap_err(|err| error!(%err, "set temp file size failed"))?;
 
             let download_block_requests = match &local_index_file.detail.block_chain {
-                None => blocks_to_download_block_requests(&remote_block_chain.blocks),
+                None => blocks_to_download_block_requests(
+                    self.dir_id,
+                    Path::new(&remote_index_file.filename),
+                    &remote_block_chain.blocks,
+                ),
 
-                Some(local_block_chain) => {
-                    compare_blocks(&remote_block_chain.blocks, &local_block_chain.blocks)
-                }
+                Some(local_block_chain) => compare_blocks(
+                    self.dir_id,
+                    Path::new(&remote_index_file.filename),
+                    &remote_block_chain.blocks,
+                    &local_block_chain.blocks,
+                ),
             };
 
             let block_stream = self
@@ -525,7 +538,11 @@ where
             .await
             .tap_err(|err| error!(%err, "set temp file size failed"))?;
 
-        let download_block_requests = blocks_to_download_block_requests(&remote_block_chain.blocks);
+        let download_block_requests = blocks_to_download_block_requests(
+            self.dir_id,
+            Path::new(&remote_index_file.filename),
+            &remote_block_chain.blocks,
+        );
 
         let block_stream = self
             .download_transfer
@@ -556,13 +573,13 @@ where
 
     async fn send_rumors_to_others(
         &mut self,
-        sender_id: &Uuid,
+        sender_id: Uuid,
         rumors: Vec<IndexFile>,
     ) -> Result<()> {
         let send_rumors = SendRumors {
-            dir_id: *self.dir_id,
+            dir_id: self.dir_id,
             rumors,
-            except: Some(*sender_id),
+            except: Some(sender_id),
         };
 
         self.rumor_sender.send(send_rumors).await?;
@@ -571,10 +588,16 @@ where
     }
 }
 
-fn blocks_to_download_block_requests(blocks: &[Block]) -> Vec<DownloadBlockRequest> {
+fn blocks_to_download_block_requests<'a>(
+    dir_id: Uuid,
+    filename: &'a Path,
+    blocks: &'a [Block],
+) -> Vec<DownloadBlockRequest> {
     blocks
         .iter()
         .map(|block| DownloadBlockRequest {
+            dir_id,
+            filename: filename.to_string_lossy().to_string(),
             offset: block.offset,
             len: block.len,
             hash_sum: block.hash_sum,
@@ -654,7 +677,14 @@ async fn sync_file<S: Stream<Item = io::Result<Option<DownloadBlock>>>>(
     Ok(true)
 }
 
-fn compare_blocks(left_blocks: &[Block], right_blocks: &[Block]) -> Vec<DownloadBlockRequest> {
+fn compare_blocks(
+    dir_id: Uuid,
+    filename: &Path,
+    left_blocks: &[Block],
+    right_blocks: &[Block],
+) -> Vec<DownloadBlockRequest> {
+    let filename = filename.to_string_lossy().to_string();
+
     left_blocks
         .iter()
         .zip_longest(right_blocks.iter())
@@ -664,6 +694,8 @@ fn compare_blocks(left_blocks: &[Block], right_blocks: &[Block]) -> Vec<Download
                     None
                 } else {
                     Some(DownloadBlockRequest {
+                        dir_id,
+                        filename: filename.clone(),
                         offset: remote_block.offset,
                         len: remote_block.len,
                         hash_sum: remote_block.hash_sum,
@@ -671,6 +703,8 @@ fn compare_blocks(left_blocks: &[Block], right_blocks: &[Block]) -> Vec<Download
                 }
             }
             EitherOrBoth::Left(remote_block) => Some(DownloadBlockRequest {
+                dir_id,
+                filename: filename.clone(),
                 offset: remote_block.offset,
                 len: remote_block.len,
                 hash_sum: remote_block.hash_sum,

@@ -8,6 +8,7 @@ use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 
 use super::*;
+use crate::ext::hash_file;
 use crate::index::{MockIndex, MockIndexGuard};
 
 #[tokio::test]

@@ -16,8 +16,9 @@ use tokio_stream::wrappers::ReadDirStream;
 use tracing::{error, info};
 use uuid::Uuid;
 
+use crate::ext::hash_file;
 use crate::index::{FileDetail, FileKind, Index, IndexFile, IndexGuard};
-use crate::sync_control::{hash_file, SendRumors};
+use crate::sync_control::SendRumors;
 
 pub struct SyncAllHandler<'a, I, Si> {
     user_id: &'a Uuid,
