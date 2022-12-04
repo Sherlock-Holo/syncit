@@ -51,7 +51,7 @@ impl FromStr for FileKind {
         match s {
             "File" => Ok(FileKind::File),
             "Symlink" => Ok(FileKind::Symlink),
-            s => Err(format!("invalid file kind '{}'", s)),
+            s => Err(format!("invalid file kind '{s}'")),
         }
     }
 }

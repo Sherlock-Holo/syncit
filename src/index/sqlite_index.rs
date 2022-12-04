@@ -44,6 +44,16 @@ pub struct SqliteIndex {
     db_poll: SqlitePool,
 }
 
+impl SqliteIndex {
+    pub async fn new(db_path: &str) -> Result<Self, Error> {
+        let pool = SqlitePool::connect(db_path)
+            .await
+            .tap_err(|err| error!(%err, "connect sqlite failed"))?;
+
+        Ok(Self { db_poll: pool })
+    }
+}
+
 #[async_trait]
 impl Index for SqliteIndex {
     type Error = Error;
@@ -248,7 +258,7 @@ impl SqliteIndexGuard {
 
                     return Err(Error::SqlError(sqlx::Error::Io(io::Error::new(
                         ErrorKind::Other,
-                        format!("rows affected {} invalid, should be 1", rows_affected),
+                        format!("rows affected {rows_affected} invalid, should be 1"),
                     ))));
                 }
 
@@ -286,7 +296,7 @@ impl SqliteIndexGuard {
 
             return Err(Error::SqlError(sqlx::Error::Io(io::Error::new(
                 ErrorKind::Other,
-                format!("rows affected {} invalid, should be 1", rows_affected),
+                format!("rows affected {rows_affected} invalid, should be 1"),
             ))));
         }
 
