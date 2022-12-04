@@ -3,6 +3,7 @@ use std::io::{self, ErrorKind as IoErrorKind};
 use std::path::PathBuf;
 use std::task::{Context, Poll};
 
+use async_trait::async_trait;
 use flume::Receiver;
 use futures_util::task::noop_waker_ref;
 use futures_util::{Sink, SinkExt, TryStreamExt};
@@ -260,6 +261,7 @@ pub struct Controller {
     dir_watcher: RecommendedWatcher,
 }
 
+#[async_trait]
 impl WatchControl for Controller {
     type Error = io::Error;
 

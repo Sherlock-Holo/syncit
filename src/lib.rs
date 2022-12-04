@@ -1,6 +1,6 @@
 #![feature(io_error_more)]
 #![feature(pin_macro)]
-#![feature(async_fn_in_trait)]
+#![feature(type_alias_impl_trait)]
 
 mod ext;
 mod file_event_produce;

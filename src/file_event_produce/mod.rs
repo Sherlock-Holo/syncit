@@ -1,6 +1,8 @@
 use std::error::Error;
 use std::ffi::OsString;
 
+use async_trait::async_trait;
+
 mod producer;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -23,6 +25,7 @@ pub enum WatchEvent {
     },
 }
 
+#[async_trait]
 pub trait WatchControl {
     type Error: Error;
 
