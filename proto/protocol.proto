@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package syncit;
+
+message DownloadBlockRequest {
+  string dir_id = 1;
+  string filename = 2;
+  uint64 offset = 3;
+  uint64 len = 4;
+  string hash_sum = 5;
+}
+
+message DownloadBlock {
+  optional DownloadBlockInner inner = 1;
+}
+
+message DownloadBlockInner {
+  uint64 offset = 1;
+  bytes data = 2;
+}
+
+service DownloadTransferService {
+  rpc Download(stream DownloadBlockRequest) returns (stream DownloadBlock);
+}

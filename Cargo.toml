@@ -2,6 +2,7 @@
 name = "syncit"
 version = "0.1.0"
 edition = "2021"
+build = "build.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -9,6 +10,11 @@ edition = "2021"
 tokio = { version = "1", features = ["fs", "rt-multi-thread", "macros", "time"] }
 tokio-stream = { version = "0.1", features = ["fs"] }
 bytes = "1"
+
+tonic = "0.8"
+prost = "0.11"
+tower = "0.4"
+http = "0.2"
 
 async-trait = "0.1"
 futures-util = { version = "0.3", features = ["sink"] }
@@ -54,3 +60,7 @@ mockall = "0.11"
 
 [dev-dependencies]
 tempfile = "3"
+
+[build-dependencies]
+tonic-build = "0.8"
+prost-build = "0.11"
